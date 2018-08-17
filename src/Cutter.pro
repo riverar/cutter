@@ -278,7 +278,8 @@ HEADERS  += \
     dialogs/BreakpointsDialog.h \
     dialogs/AttachProcDialog.h \
     widgets/RegisterRefsWidget.h \
-    dialogs/SetToDataDialog.h
+    dialogs/SetToDataDialog.h \
+    utils/Json.h
 
 FORMS    += \
     dialogs/AboutDialog.ui \

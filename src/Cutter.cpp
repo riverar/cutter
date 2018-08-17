@@ -8,6 +8,7 @@
 #include "utils/Configuration.h"
 #include "utils/AsyncTask.h"
 #include "utils/R2Task.h"
+#include "utils/Json.h"
 #include "Cutter.h"
 #include "sdb.h"
 
@@ -1744,8 +1745,6 @@ QList<ClassDescription> CutterCore::getAllClassesFromBin()
     return ret;
 }
 
-#include <QList>
-
 QList<ClassDescription> CutterCore::getAllClassesFromFlags()
 {
     static const QRegularExpression classFlagRegExp("^class\\.(.*)$");
@@ -1775,7 +1774,7 @@ QList<ClassDescription> CutterCore::getAllClassesFromFlags()
             }
             desc->name = match.captured(1);
             desc->addr = flagObject["offset"].toVariant().toULongLong();
-            desc->index = 0;
+            desc->index = RVA_INVALID;
             continue;
         }
 
@@ -1788,7 +1787,7 @@ QList<ClassDescription> CutterCore::getAllClassesFromFlags()
                 // add a new stub class, will be replaced if class flag comes after it
                 ClassDescription cls;
                 cls.name = tr("Unknown (%1)").arg(className);
-                cls.addr = 0;
+                cls.addr = RVA_INVALID;
                 cls.index = 0;
                 ret << cls;
                 classDesc = &ret.last();
@@ -1803,6 +1802,46 @@ QList<ClassDescription> CutterCore::getAllClassesFromFlags()
             classDesc->methods << meth;
             continue;
         }
+    }
+    return ret;
+}
+
+QList<ClassDescription> CutterCore::getAllClassesFromAnal()
+{
+    bool ok;
+    QList<ClassDescription> ret;
+
+    QJsonArray classesArray = cmdj("aClj").array();
+    for (QJsonValueRef value : classesArray) {
+        QJsonObject classObject = value.toObject();
+
+        ClassDescription cls;
+        cls.name = classObject["name"].toString();
+        cls.addr = classObject["addr"].toVariant().toULongLong(&ok);
+        cls.addr = JsonValueGetRVA(classObject["addr"]);
+        cls.index = 0;
+        cls.vtableAddr = JsonValueGetRVA(classObject["vtable_addr"]);
+
+        for (QJsonValueRef value2 : classObject["bases"].toArray()) {
+            QJsonObject baseObject = value2.toObject();
+
+            ClassBaseClassDescription base;
+            base.name = baseObject["name"].toString();
+            base.offset = JsonValueGetRVA(baseObject["offset"], 0);
+            cls.baseClasses << base;
+        }
+
+        for (QJsonValueRef value2 : classObject["methods"].toArray()) {
+            QJsonObject methObject = value2.toObject();
+
+            ClassMethodDescription meth;
+            meth.name = methObject["name"].toString();
+            meth.addr = JsonValueGetRVA(methObject["addr"]);
+            meth.vtableIndex = methObject["vtable_index"].toInt(-1);
+            cls.methods << meth;
+        }
+
+        ret << cls;
     }
     return ret;
 }
